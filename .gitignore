@@ -1,0 +1,13 @@
+# Dependencies
+node_modules/
+
+# Test and coverage output
+coverage/
+
+# Logs and local environment
+*.log
+.env
+.env.*
+
+# macOS metadata
+.DS_Store

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Git ship",
+    "description": "Floats commit, push, branch and pull-request actions above the conversation composer."
+  }
+}
