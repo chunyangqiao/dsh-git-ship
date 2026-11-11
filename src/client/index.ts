@@ -111,7 +111,7 @@ const CSS = `
   gap: 2px;
   border-radius: 999px;
   border: 1px solid var(--dsw-alias-border-l2, var(--dsw-alias-border-l1));
-  background: var(--dsw-alias-bg-overlay, var(--dsw-alias-bg-layer-1));
+  background: var(--dsw-specific-input-major, var(--dsw-alias-bg-overlay, var(--dsw-alias-bg-layer-1)));
   color: var(--dsw-alias-label-primary);
 }
 .gs-pill:hover {
@@ -149,7 +149,7 @@ const CSS = `
   gap: 2px;
   border-radius: 12px;
   border: 0.5px solid var(--dsw-alias-border-l1);
-  background: var(--dsw-alias-bg-overlay, var(--dsw-alias-bg-layer-1));
+  background: var(--dsw-specific-input-major, var(--dsw-alias-bg-overlay, var(--dsw-alias-bg-layer-1)));
   box-shadow: var(--dsw-elevation-panel, 0 8px 24px rgba(0, 0, 0, 0.16));
 }
 .gs-item {
