@@ -44,8 +44,8 @@ After an action, a result strip (commit hash, pushed, PR link, etc.) appears and
 ## Development and verification
 
 ```bash
-node test/git.test.mjs    # Git core flows: status, commit, push, branch, PR fallback
-node test/host.test.mjs   # End-to-end behavior of /api/git-ship
+npm test        # Git core flows and the /api/git-ship route
+npm run build   # Emit lib/index.js and the browser client bundle
 ```
 
 Installation and verification:

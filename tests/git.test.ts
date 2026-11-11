@@ -8,21 +8,28 @@ import {
   readStatus,
   runAction,
   webRepositoryUrl,
-} from '../git.js'
-import { cleanup, createSubprocess, git, setupRepo } from './helpers.mjs'
+  type RepoStatus,
+  type StatusResult,
+} from '../src/git/index.ts'
+import { cleanup, createSubprocess, git, setupRepo } from './helpers.ts'
 
-const createContext = (options) => ({ subprocess: createSubprocess(options) })
+const createContext = (options?: { withoutGh?: boolean }) => ({ subprocess: createSubprocess(options) })
 
-const tests = []
-function test(name, fn) {
+function assertRepo(status: StatusResult): RepoStatus {
+  assert.equal(status.isRepo, true)
+  if (!status.isRepo) throw new Error('expected a repository')
+  return status
+}
+
+const tests: { name: string; fn: () => Promise<void> | void }[] = []
+function test(name: string, fn: () => Promise<void> | void): void {
   tests.push({ name, fn })
 }
 
 test('clean pushed repository offers only PR and branch creation', async () => {
   const { base, repo } = setupRepo()
   try {
-    const status = await readStatus(createContext(), repo)
-    assert.equal(status.isRepo, true)
+    const status = assertRepo(await readStatus(createContext(), repo))
     assert.deepEqual(status.changes, { staged: 0, unstaged: 0, untracked: 0, total: 0 })
     assert.deepEqual(status.actions, ['createPr', 'createBranch'])
     assert.equal(status.defaultAction, null)
@@ -38,7 +45,7 @@ test('unstaged and untracked changes unlock commit variants', async () => {
   try {
     writeFileSync(join(repo, 'a.txt'), 'two\n')
     writeFileSync(join(repo, 'b.txt'), 'new\n')
-    const status = await readStatus(createContext(), repo)
+    const status = assertRepo(await readStatus(createContext(), repo))
     assert.equal(status.changes.unstaged, 1)
     assert.equal(status.changes.untracked, 1)
     assert.equal(status.changes.total, 2)
@@ -61,12 +68,15 @@ test('commit stages everything and leaves a pushable commit', async () => {
       action: 'commit',
       message: 'feat: capture the change',
     })
-    assert.match(outcome.result.commit.hash, /^[0-9a-f]+$/u)
-    assert.equal(outcome.result.commit.subject, 'feat: capture the change')
-    assert.equal(outcome.status.changes.total, 0)
-    assert.ok(outcome.status.actions.includes('push'))
-    assert.equal(outcome.status.ahead, 1)
-    assert.equal(git(repo, ['rev-parse', '--abbrev-ref', 'HEAD']), outcome.status.branch)
+    const commit = outcome.result.commit
+    assert.ok(commit)
+    const status = assertRepo(outcome.status)
+    assert.match(commit.hash, /^[0-9a-f]+$/u)
+    assert.equal(commit.subject, 'feat: capture the change')
+    assert.equal(status.changes.total, 0)
+    assert.ok(status.actions.includes('push'))
+    assert.equal(status.ahead, 1)
+    assert.equal(git(repo, ['rev-parse', '--abbrev-ref', 'HEAD']), status.branch)
   } finally {
     cleanup(base)
   }
@@ -82,11 +92,12 @@ test('commit honors an existing index instead of staging the whole worktree', as
       action: 'commit',
       message: 'feat: only the staged file',
     })
+    const status = assertRepo(outcome.status)
     assert.equal(git(repo, ['show', 'HEAD:a.txt']), 'staged change')
     assert.throws(() => git(repo, ['show', 'HEAD:b.txt']))
-    assert.equal(outcome.status.changes.staged, 0)
-    assert.equal(outcome.status.changes.untracked, 1)
-    assert.ok(outcome.status.actions.includes('commit'))
+    assert.equal(status.changes.staged, 0)
+    assert.equal(status.changes.untracked, 1)
+    assert.ok(status.actions.includes('commit'))
   } finally {
     cleanup(base)
   }
@@ -100,9 +111,10 @@ test('commit then push reaches the remote', async () => {
       action: 'commitPush',
       message: 'fix: push this',
     })
-    assert.equal(outcome.result.commit.subject, 'fix: push this')
-    assert.equal(outcome.result.push.branch, branch)
-    assert.equal(outcome.status.ahead, 0)
+    const status = assertRepo(outcome.status)
+    assert.equal(outcome.result.commit?.subject, 'fix: push this')
+    assert.equal(outcome.result.push?.branch, branch)
+    assert.equal(status.ahead, 0)
     const remoteHead = git(remote, ['rev-parse', branch])
     const localHead = git(repo, ['rev-parse', 'HEAD'])
     assert.equal(remoteHead, localHead)
@@ -120,12 +132,13 @@ test('create branch, commit and push sets a new upstream', async () => {
       branchName: 'feature/ship',
       message: 'feat: branch work',
     })
+    const status = assertRepo(outcome.status)
     assert.equal(outcome.result.branch, 'feature/ship')
-    assert.equal(outcome.status.branch, 'feature/ship')
-    assert.equal(outcome.status.hasUpstream, true)
-    assert.match(outcome.status.upstream, /feature\/ship$/u)
-    assert.equal(outcome.status.ahead, 0)
-    assert.equal(outcome.status.changes.total, 0)
+    assert.equal(status.branch, 'feature/ship')
+    assert.equal(status.hasUpstream, true)
+    assert.match(status.upstream ?? '', /feature\/ship$/u)
+    assert.equal(status.ahead, 0)
+    assert.equal(status.changes.total, 0)
   } finally {
     cleanup(base)
   }
@@ -135,11 +148,12 @@ test('create branch alone switches branches and rejects invalid names', async ()
   const { base, repo } = setupRepo()
   try {
     const outcome = await runAction(createContext(), repo, { action: 'createBranch', branchName: 'feature/empty' })
+    const status = assertRepo(outcome.status)
     assert.equal(outcome.result.branch, 'feature/empty')
-    assert.equal(outcome.status.branch, 'feature/empty')
+    assert.equal(status.branch, 'feature/empty')
     await assert.rejects(
       runAction(createContext(), repo, { action: 'createBranch', branchName: 'bad name' }),
-      (error) => error instanceof GitOperationError && error.code === 'invalid-branch',
+      (error: unknown) => error instanceof GitOperationError && error.code === 'invalid-branch',
     )
   } finally {
     cleanup(base)
@@ -155,11 +169,13 @@ test('create PR without gh reports the compare link after pushing', async () => 
     await runAction(createContext(), repo, { action: 'commit', message: 'feat: prepare a pr' })
     await assert.rejects(
       runAction(createContext({ withoutGh: true }), repo, { action: 'createPr' }),
-      (error) => {
+      (error: unknown) => {
         assert.ok(error instanceof GitOperationError)
         assert.equal(error.code, 'gh-missing')
-        assert.match(error.result.manualUrl, /^https:\/\/github\.com\/owner\/repo\/compare\//u)
-        assert.ok(error.result.push.branch)
+        const manualUrl = error.result?.manualUrl
+        if (typeof manualUrl !== 'string') return false
+        assert.match(manualUrl, /^https:\/\/github\.com\/owner\/repo\/compare\//u)
+        assert.equal(typeof error.result?.push?.branch, 'string')
         return true
       },
     )
@@ -173,11 +189,11 @@ test('unavailable actions are refused before touching the worktree', async () =>
   try {
     await assert.rejects(
       runAction(createContext(), repo, { action: 'commit', message: 'nope' }),
-      (error) => error instanceof GitOperationError && error.code === 'not-applicable',
+      (error: unknown) => error instanceof GitOperationError && error.code === 'not-applicable',
     )
     await assert.rejects(
       runAction(createContext(), repo, { action: 'nonsense' }),
-      (error) => error instanceof GitOperationError && error.code === 'unknown-action',
+      (error: unknown) => error instanceof GitOperationError && error.code === 'unknown-action',
     )
   } finally {
     cleanup(base)
@@ -196,12 +212,14 @@ test('pull-request fallback reports the compare link when gh is missing', async 
         action: 'commitPr',
         message: 'feat: pull request',
       }),
-      (error) => {
+      (error: unknown) => {
         assert.ok(error instanceof GitOperationError)
         assert.equal(error.code, 'gh-missing')
-        assert.match(error.result.manualUrl, /\/compare\//u)
-        assert.ok(error.result.commit.hash)
-        assert.ok(error.result.push.branch)
+        const manualUrl = error.result?.manualUrl
+        if (typeof manualUrl !== 'string') return false
+        assert.match(manualUrl, /\/compare\//u)
+        assert.equal(typeof error.result?.commit?.hash, 'string')
+        assert.equal(typeof error.result?.push?.branch, 'string')
         return true
       },
     )

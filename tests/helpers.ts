@@ -2,35 +2,39 @@ import { execFileSync, spawn } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import type { GitContext } from '../src/git/index.ts'
 
 /** Minimal subprocess service over the host's child_process. */
-export function createSubprocess({ withoutGh = false } = {}) {
+export function createSubprocess({ withoutGh = false } = {}): GitContext['subprocess'] {
   return {
     spawn(spec) {
-      if (withoutGh && spec.argv[0] === 'gh') throw new Error('spawn gh ENOENT')
-      const child = spawn(spec.argv[0], spec.argv.slice(1), {
+      const command = spec.argv[0]
+      if (command === undefined) throw new Error('missing argv')
+      if (withoutGh && command === 'gh') throw new Error('spawn gh ENOENT')
+      const child = spawn(command, spec.argv.slice(1), {
         cwd: spec.cwd,
         env: { ...process.env, ...spec.env },
         stdio: ['ignore', 'pipe', 'pipe'],
       })
-      const stdout = []
-      const stderr = []
-      child.stdout.on('data', (chunk) => stdout.push(chunk))
-      child.stderr.on('data', (chunk) => stderr.push(chunk))
+      const stdout: Buffer[] = []
+      const stderr: Buffer[] = []
+      if (child.stdout === null || child.stderr === null) throw new Error('expected piped stdio')
+      child.stdout.on('data', (chunk: Buffer) => stdout.push(chunk))
+      child.stderr.on('data', (chunk: Buffer) => stderr.push(chunk))
       let settled = false
-      const done = new Promise((resolve, reject) => {
+      const done = new Promise<{ exitCode: number | null }>((resolve, reject) => {
         child.on('error', (error) => {
           settled = true
           reject(error)
         })
-        child.on('close', (code, signal) => {
+        child.on('close', (code) => {
           settled = true
-          resolve({ exitCode: code, signal })
+          resolve({ exitCode: code })
         })
       })
-      const reader = (chunks) => ({
+      const reader = (chunks: Buffer[]) => ({
         readFrom() {
-          return { text: Buffer.concat(chunks).toString('utf8'), nextOffset: 0, lossy: false }
+          return { text: Buffer.concat(chunks).toString('utf8') }
         },
       })
       return {
@@ -41,16 +45,11 @@ export function createSubprocess({ withoutGh = false } = {}) {
         },
       }
     },
-    async resolveExecutable(name) {
-      if (name === 'gh' && withoutGh) throw new Error('not found')
-      execFileSync('which', [name], { stdio: 'ignore' })
-      return name
-    },
   }
 }
 
 /** Create a temporary repository with a local bare remote. */
-export function setupRepo() {
+export function setupRepo(): { base: string; repo: string; remote: string; branch: string } {
   const base = mkdtempSync(join(tmpdir(), 'git-ship-test-'))
   const repo = join(base, 'repo')
   const remote = join(base, 'remote.git')
@@ -69,11 +68,11 @@ export function setupRepo() {
 }
 
 /** Run git and return trimmed stdout. */
-export function git(cwd, args) {
+export function git(cwd: string, args: string[]): string {
   return execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()
 }
 
 /** Remove a temporary test directory. */
-export function cleanup(base) {
+export function cleanup(base: string): void {
   rmSync(base, { recursive: true, force: true })
 }

@@ -45,8 +45,8 @@ DeepSeek Harness Web UI 插件：在对话输入框上方悬浮一个 Git 操作
 ## 开发与验证
 
 ```bash
-node test/git.test.mjs    # Git 核心流程：状态、commit、push、分支、PR 回退
-node test/host.test.mjs   # /api/git-ship 路由的端到端行为
+npm test        # Git 核心流程与 /api/git-ship 路由
+npm run build   # 生成 lib/index.js 和浏览器 client 包
 ```
 
 安装与验证：

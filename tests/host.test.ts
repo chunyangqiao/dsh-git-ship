@@ -1,12 +1,36 @@
 import { strict as assert } from 'node:assert'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { apply } from '../index.js'
-import { cleanup, createSubprocess, git, setupRepo } from './helpers.mjs'
+import { apply, type HostContext } from '../src/index.ts'
+import { cleanup, createSubprocess, git, setupRepo } from './helpers.ts'
+
+interface ApiBody {
+  ok?: boolean
+  error?: { code?: string; detail?: string }
+  status?: {
+    isRepo?: boolean
+    branch?: string
+    changes?: { unstaged?: number; total?: number }
+    defaultAction?: string | null
+    actions?: string[]
+  }
+  result?: {
+    commit?: { subject?: string; hash?: string }
+    manualUrl?: string
+    push?: { branch?: string }
+  }
+}
+
+interface RegisteredRoute {
+  path: string
+  methods: string[]
+  requestBody: string
+  fetch: (request: Request) => Promise<Response>
+}
 
 /** Build the Host plugin context the route needs. */
-function mount(repo, { sessionId = 'session-1', withoutGh = false } = {}) {
-  const routes = []
+function mount(repo: string, { sessionId = 'session-1', withoutGh = false }: { sessionId?: string; withoutGh?: boolean } = {}): RegisteredRoute {
+  const routes: RegisteredRoute[] = []
   const session = {
     id: sessionId,
     ownEvents: () => [
@@ -18,12 +42,12 @@ function mount(repo, { sessionId = 'session-1', withoutGh = false } = {}) {
       { type: 'assistant/message', data: { content: [{ type: 'text', text: 'Done.' }] } },
     ],
   }
-  const ctx = {
+  const ctx: HostContext = {
     connection: {
       fetch: {
         register(route) {
           routes.push(route)
-          return () => {}
+          return undefined
         },
       },
     },
@@ -33,17 +57,23 @@ function mount(repo, { sessionId = 'session-1', withoutGh = false } = {}) {
   }
   apply(ctx)
   assert.equal(routes.length, 1)
-  return routes[0]
+  const route = routes[0]
+  if (route === undefined) throw new Error('git-ship route was not registered')
+  return route
 }
 
-async function getStatus(route, sessionId = 'session-1') {
+async function readJson(response: Response): Promise<ApiBody> {
+  return await response.json() as ApiBody
+}
+
+async function getStatus(route: RegisteredRoute, sessionId = 'session-1'): Promise<{ response: Response; body: ApiBody }> {
   const response = await route.fetch(
     new Request(`http://localhost/api/git-ship?sessionId=${encodeURIComponent(sessionId)}`),
   )
-  return { response, body: await response.json() }
+  return { response, body: await readJson(response) }
 }
 
-async function postAction(route, payload) {
+async function postAction(route: RegisteredRoute, payload: unknown): Promise<{ response: Response; body: ApiBody }> {
   const response = await route.fetch(
     new Request('http://localhost/api/git-ship', {
       method: 'POST',
@@ -51,11 +81,11 @@ async function postAction(route, payload) {
       body: JSON.stringify(payload),
     }),
   )
-  return { response, body: await response.json() }
+  return { response, body: await readJson(response) }
 }
 
-const tests = []
-function test(name, fn) {
+const tests: { name: string; fn: () => Promise<void> | void }[] = []
+function test(name: string, fn: () => Promise<void> | void): void {
   tests.push({ name, fn })
 }
 
@@ -80,11 +110,11 @@ test('GET reports repository state for the live session', async () => {
     const { response, body } = await getStatus(route)
     assert.equal(response.status, 200)
     assert.equal(body.ok, true)
-    assert.equal(body.status.isRepo, true)
-    assert.equal(body.status.branch, branch)
-    assert.equal(body.status.changes.unstaged, 1)
-    assert.equal(body.status.defaultAction, 'commitPush')
-    assert.ok(body.status.actions.includes('commitPr'))
+    assert.equal(body.status?.isRepo, true)
+    assert.equal(body.status?.branch, branch)
+    assert.equal(body.status?.changes?.unstaged, 1)
+    assert.equal(body.status?.defaultAction, 'commitPush')
+    assert.ok(body.status?.actions?.includes('commitPr'))
   } finally {
     cleanup(base)
   }
@@ -96,22 +126,22 @@ test('GET hides the control outside a repository and for a closed session', asyn
     const route = mount(repo)
     const missing = await getStatus(route, 'session-404')
     assert.equal(missing.response.status, 409)
-    assert.equal(missing.body.error.code, 'session-closed')
+    assert.equal(missing.body.error?.code, 'session-closed')
 
     const outside = join(base, 'outside')
     const foreign = mountRouteOutside(outside)
     const foreignStatus = await getStatus(foreign)
     assert.equal(foreignStatus.body.ok, true)
-    assert.equal(foreignStatus.body.status.isRepo, false)
+    assert.equal(foreignStatus.body.status?.isRepo, false)
   } finally {
     cleanup(base)
   }
 })
 
-function mountRouteOutside() {
+function mountRouteOutside(_directory?: string): RegisteredRoute {
   // Reuse the normal mount shape but point the working directory at a non-repository.
-  const routes = []
-  const ctx = {
+  const routes: RegisteredRoute[] = []
+  const ctx: HostContext = {
     connection: {
       fetch: {
         register(route) {
@@ -124,7 +154,9 @@ function mountRouteOutside() {
     subprocess: createSubprocess(),
   }
   apply(ctx)
-  return routes[0]
+  const route = routes[0]
+  if (route === undefined) throw new Error('git-ship route was not registered')
+  return route
 }
 
 test('POST commits with the latest user prompt as its subject', async () => {
@@ -135,9 +167,9 @@ test('POST commits with the latest user prompt as its subject', async () => {
     const { response, body } = await postAction(route, { sessionId: 'session-1', action: 'commit' })
     assert.equal(response.status, 200)
     assert.equal(body.ok, true)
-    assert.equal(body.result.commit.subject, 'feat: add the ship button')
-    assert.equal(body.result.commit.hash.length > 0, true)
-    assert.equal(body.status.changes.total, 0)
+    assert.equal(body.result?.commit?.subject, 'feat: add the ship button')
+    assert.equal((body.result?.commit?.hash?.length ?? 0) > 0, true)
+    assert.equal(body.status?.changes?.total, 0)
     assert.equal(git(repo, ['log', '-1', '--pretty=%s']), 'feat: add the ship button')
   } finally {
     cleanup(base)
@@ -156,15 +188,15 @@ test('POST rejects malformed bodies and unavailable actions', async () => {
       }),
     )
     assert.equal(malformed.status, 400)
-    assert.equal((await malformed.json()).error.code, 'bad-request')
+    assert.equal((await readJson(malformed)).error?.code, 'bad-request')
 
     const invalid = await postAction(route, { sessionId: 'session-1', action: 'nonsense' })
     assert.equal(invalid.body.ok, false)
-    assert.equal(invalid.body.error.code, 'unknown-action')
+    assert.equal(invalid.body.error?.code, 'unknown-action')
 
     const notApplicable = await postAction(route, { sessionId: 'session-1', action: 'commit' })
     assert.equal(notApplicable.body.ok, false)
-    assert.equal(notApplicable.body.error.code, 'not-applicable')
+    assert.equal(notApplicable.body.error?.code, 'not-applicable')
   } finally {
     cleanup(base)
   }
@@ -182,10 +214,10 @@ test('POST creates the branch, commits, pushes and reports a compare link when g
       action: 'commitPr',
     })
     assert.equal(body.ok, false)
-    assert.equal(body.error.code, 'gh-missing')
-    assert.match(body.result.manualUrl, /^https:\/\/github\.com\/owner\/repo\/compare\//u)
-    assert.ok(body.result.commit.hash)
-    assert.ok(body.result.push.branch)
+    assert.equal(body.error?.code, 'gh-missing')
+    assert.match(body.result?.manualUrl ?? '', /^https:\/\/github\.com\/owner\/repo\/compare\//u)
+    assert.ok(body.result?.commit?.hash)
+    assert.ok(body.result?.push?.branch)
   } finally {
     cleanup(base)
   }
