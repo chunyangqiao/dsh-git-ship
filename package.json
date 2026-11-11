@@ -31,8 +31,8 @@
     "icon.svg"
   ],
   "scripts": {
-    "build": "rm -rf lib && tsc -p tsconfig.json && tsc -p tsconfig.host.json && tsdown",
-    "prepare": "rm -rf lib && tsc -p tsconfig.json && tsc -p tsconfig.host.json && tsdown",
+    "build": "node -e \"require('node:fs').rmSync('lib',{recursive:true,force:true})\" && tsc -p tsconfig.json && tsc -p tsconfig.host.json && tsdown",
+    "prepare": "npm run build",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.host.json --noEmit && tsc -p tsconfig.tests.json",
     "test": "node --import tsx tests/git.test.ts && node --import tsx tests/host.test.ts"
   },

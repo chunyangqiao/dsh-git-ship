@@ -4,7 +4,7 @@
 
 DeepSeek Harness Web UI 插件：在对话输入框上方悬浮一个 Git 操作按钮。
 
-- 插件包：仓库根（bundle 名 `dsh-git-ship`，已安装到 `desktop` profile）
+- 插件包：仓库根（bundle 名 `dsh-git-ship`；本地开发时 link 到 `desktop` profile）
 - 显示位置：`conversation.input.dock`，仅在有打开会话且会话空闲时渲染
 - 宿主通道：`/api/git-ship`（`connection` 的 exact Fetch route，仅 owner Peer 可用）
 
@@ -41,6 +41,22 @@ DeepSeek Harness Web UI 插件：在对话输入框上方悬浮一个 Git 操作
 - 浏览器只传 `sessionId` 和操作名；仓库路径由 Host 从 live Session 的 effective working directory 解析，不接受请求里的路径。
 - Fetch route 走 `/api` 共享通道：connection 先做 cookie/Origin 校验，共享 handler 再要求 `peer.principal.kind === 'owner'`。
 - 同一会话同一时间只允许一个 Git 操作。
+
+## 从 GitHub 安装
+
+在 DSH 中打开「插件」→「添加插件」→「安装第三方插件」，填入：
+
+```text
+https://github.com/chunyangqiao/dsh-git-ship
+```
+
+或 `github:chunyangqiao/dsh-git-ship`。
+
+`lib/` 不在仓库里，从 Git 安装时由 `prepare` 现场构建。pnpm 11 默认禁止 Git 包执行构建脚本，第一次安装会报 `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED`；在安装对话框选择**允许这些脚本并重试**即可，DSH 会把这次 commit 写进 profile 的 `allowBuilds`。更新到新 commit 后会再次要求批准。
+
+构建过程还需要 `PATH` 中有 `npm`，并且 npm 源可达：pnpm 会先在 checkout 里执行 `npm install`，再运行 `prepare`。不要用 GitHub 的归档（`.tar.gz`）地址安装，tarball 不会执行 `prepare`，而 `lib/` 又不在仓库里。
+
+安装完成后按 DSH 提示重启 Host；浏览器端刷新页面。同一 profile 如果已经装了本地 `link:` 版本，先卸载或更新。
 
 ## 开发与验证
 

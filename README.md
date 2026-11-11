@@ -4,7 +4,7 @@ English | [中文](README.zh.md)
 
 A DeepSeek Harness Web UI plugin that floats a Git action pill above the conversation composer.
 
-- Package: repository root (bundle name `dsh-git-ship`, installed in the `desktop` profile)
+- Package: repository root (bundle name `dsh-git-ship`; the local development install links it into the `desktop` profile)
 - Slot: `conversation.input.dock`; renders only when a session is open and idle
 - Host route: `/api/git-ship` (an exact Fetch route on `connection`, available only to the owner Peer)
 
@@ -40,6 +40,22 @@ After an action, a result strip (commit hash, pushed, PR link, etc.) appears and
 - The browser sends only `sessionId` and the action name; the Host resolves the repository path from the live Session's effective working directory and never accepts a path in the request.
 - The Fetch route uses the shared `/api` channel: `connection` checks the cookie/Origin, then the shared handler requires `peer.principal.kind === 'owner'`.
 - One Git action at a time per session.
+
+## Install from GitHub
+
+In DSH, open **Plugins** → **Add plugin** → **Install third-party plugin** and enter:
+
+```text
+https://github.com/chunyangqiao/dsh-git-ship
+```
+
+or `github:chunyangqiao/dsh-git-ship`.
+
+`lib/` is not committed: the package builds it with `prepare` when installed from Git. pnpm 11 blocks build scripts of Git-hosted packages by default, so the first install stops with `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED`. Choose **Allow these scripts and retry** in the install dialog; DSH records the exact commit in the profile's `allowBuilds`. A new commit needs the approval again.
+
+The build also needs `npm` on `PATH` and a reachable npm registry, because pnpm runs `npm install` in the checkout before `prepare`. Do not install from a GitHub archive (`.tar.gz`) URL: tarballs do not run `prepare`, and `lib/` is absent.
+
+After installation, restart the Host if DSH asks and refresh the page for the client bundle. If the same profile already has the local `link:` version, remove or update it first.
 
 ## Development and verification
 
