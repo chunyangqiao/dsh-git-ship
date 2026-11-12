@@ -93,133 +93,228 @@ const BRANCH_ACTIONS = new Set(['createBranch', 'branchCommit', 'branchCommitPus
 const CSS = `
 .gs-root {
   box-sizing: border-box;
-  width: calc(100% - var(--dsh-composer-side-clearance, 8px) - var(--dsh-composer-side-clearance, 8px));
-  max-width: var(--dsh-composer-card-max-width, 100%);
+  width: calc(100% - var(--dsh-composer-side-clearance, 16px) - var(--dsh-composer-side-clearance, 16px) - var(--dsh-composer-dock-inset, 8px) - var(--dsh-composer-dock-inset, 8px));
+  max-width: calc(var(--dsh-composer-card-max-width, 100%) - var(--dsh-composer-dock-inset, 8px) - var(--dsh-composer-dock-inset, 8px));
   margin: 0 auto;
+  padding: 0 var(--dsh-composer-dock-inset, 8px);
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 6px;
+  flex: none;
   font-family: var(--dsw-font-family, inherit);
 }
 .gs-anchor { position: relative; display: inline-flex; }
 .gs-pill {
   display: inline-flex;
   align-items: center;
-  height: 28px;
-  padding: 0 8px 0 12px;
   gap: 2px;
-  border-radius: 999px;
-  border: 1px solid var(--dsw-alias-border-l2, var(--dsw-alias-border-l1));
-  background: var(--dsw-specific-input-major, var(--dsw-alias-bg-overlay, var(--dsw-alias-bg-layer-1)));
-  color: var(--dsw-alias-label-primary);
-}
-.gs-pill:hover {
-  background: var(--dsw-alias-interactive-bg-hover, var(--dsw-alias-bg-layer-2));
+  height: 28px;
+  border-radius: var(--dsw-radius-sm, 8px);
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
 }
 .gs-main, .gs-arrow {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0;
   border: 0;
+  border-radius: var(--dsw-radius-sm, 8px);
   background: transparent;
   color: inherit;
   font: inherit;
   font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
   cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  height: 26px;
-  padding: 0;
   white-space: nowrap;
 }
-.gs-main { gap: 6px; }
-.gs-arrow { width: 16px; justify-content: center; }
-.gs-main:disabled, .gs-arrow:disabled { cursor: default; opacity: 0.55; }
-.gs-main:focus-visible, .gs-arrow:focus-visible, .gs-item:focus-visible, .gs-confirm:focus-visible, .gs-cancel:focus-visible {
-  outline: var(--dsw-focus-ring-width, 2px) solid var(--dsw-focus-ring-color, var(--dsw-alias-brand-primary));
-  outline-offset: -2px;
+.gs-main {
+  min-width: 0;
+  max-width: 220px;
+  gap: 4px;
+  padding: 0 4px 0 8px;
+}
+.gs-mainLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gs-main .gs-glyph, .gs-main .gs-spin { flex: none; }
+.gs-main .gs-glyph { color: inherit; }
+.gs-arrow {
+  width: 24px;
+  justify-content: center;
+  color: var(--dsw-alias-label-caption);
+}
+.gs-arrow svg { transition: transform 0.12s var(--ds-ease-in-out, ease); }
+.gs-arrow[aria-expanded="true"] svg { transform: rotate(180deg); }
+@media (hover: hover) {
+  .gs-main:hover:not(:disabled), .gs-arrow:hover:not(:disabled) {
+    background: var(--dsw-alias-interactive-bg-hover, var(--dsw-alias-bg-layer-2));
+  }
+}
+.gs-main:disabled, .gs-arrow:disabled {
+  color: var(--dsw-alias-label-dimmed);
+  cursor: default;
+}
+.gs-main:focus-visible, .gs-arrow:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
 }
 .gs-menu {
   position: absolute;
   left: 0;
-  bottom: calc(100% + 8px);
+  bottom: calc(100% + 4px);
   z-index: 40;
-  min-width: 224px;
+  box-sizing: border-box;
+  width: max-content;
+  min-width: min(144px, calc(100vw - 24px));
+  max-width: min(360px, calc(100vw - 24px));
+  max-height: min(calc(100vh - 24px), 420px);
+  max-height: min(calc(100dvh - 24px), 420px);
+  overflow-y: auto;
   padding: 4px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  border-radius: 12px;
-  border: 0.5px solid var(--dsw-alias-border-l1);
-  background: var(--dsw-specific-input-major, var(--dsw-alias-bg-overlay, var(--dsw-alias-bg-layer-1)));
-  box-shadow: var(--dsw-elevation-panel, 0 8px 24px rgba(0, 0, 0, 0.16));
+  gap: 0;
+  border: 0;
+  border-radius: var(--dsw-radius-lg, 16px);
+  background: var(--dsw-menu-surface-fill, var(--dsw-specific-menu, var(--dsw-alias-bg-overlay, var(--dsw-alias-bg-layer-2))));
+  -webkit-backdrop-filter: var(--dsw-menu-backdrop-filter, none);
+  backdrop-filter: var(--dsw-menu-backdrop-filter, none);
+  --dsw-elevation-stroke-color: var(--dsw-alias-border-l1);
+  box-shadow: var(--dsw-elevation-prominent, var(--dsw-elevation-panel, 0 8px 24px rgba(0, 0, 0, 0.16)));
+  color: var(--dsw-alias-label-primary);
+  isolation: isolate;
+  animation: gs-menu-in 0.16s ease-out;
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
 }
+.gs-menuBranch { min-width: min(280px, calc(100vw - 24px)); }
 .gs-item {
+  box-sizing: border-box;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   width: 100%;
-  min-height: 32px;
-  padding: 0 10px;
+  min-height: 34px;
+  padding: 6px 8px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-md, 12px);
   background: transparent;
   color: var(--dsw-alias-label-primary);
   font: inherit;
   font-size: 13px;
+  font-weight: 400;
+  line-height: 20px;
   text-align: left;
   cursor: pointer;
 }
-.gs-item:hover { background: var(--dsw-alias-interactive-bg-hover, var(--dsw-alias-bg-layer-2)); }
-.gs-glyph { flex: none; display: inline-flex; color: var(--dsw-alias-label-secondary); }
+.gs-item:disabled, .gs-item[aria-disabled="true"] { cursor: not-allowed; opacity: 0.4; }
+@media (hover: hover) {
+  .gs-item:hover:not(:disabled):not([aria-disabled="true"]) {
+    background: var(--dsw-alias-interactive-bg-hover, var(--dsw-alias-bg-layer-2));
+  }
+}
+.gs-item:focus-visible:not(:disabled) {
+  outline: none;
+  background: var(--dsw-alias-interactive-bg-hover, var(--dsw-alias-bg-layer-2));
+}
+.gs-glyph {
+  flex: none;
+  display: inline-flex;
+  color: var(--dsw-alias-menu-icon, var(--dsw-alias-label-secondary));
+}
+.gs-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gs-empty {
+  display: flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 6px 8px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 13px;
+  line-height: 20px;
+}
 .gs-branch {
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px;
-  border-bottom: 0.5px solid var(--dsw-alias-border-l1);
+  padding: 4px;
   margin-bottom: 4px;
+  border-bottom: 0.5px solid var(--dsw-alias-border-l2);
 }
 .gs-input {
   box-sizing: border-box;
   flex: 1;
   min-width: 0;
-  height: 28px;
+  height: 30px;
   padding: 0 8px;
-  border-radius: 6px;
-  border: 0.5px solid var(--dsw-alias-border-l2);
-  background: var(--dsw-alias-bg-base);
+  border-radius: var(--dsw-radius-sm, 8px);
+  border: 0.5px solid var(--dsw-alias-border-l3, var(--dsw-alias-border-l2));
+  background: var(--dsw-alias-bg-module-platform, var(--dsw-alias-bg-base));
   color: var(--dsw-alias-label-primary);
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
+  line-height: 20px;
   outline: none;
 }
+.gs-input::placeholder { color: var(--dsw-alias-label-tertiary); }
 .gs-input:focus { border-color: var(--dsw-alias-brand-primary); }
 .gs-confirm, .gs-cancel {
+  box-sizing: border-box;
+  flex: none;
   height: 28px;
   padding: 0 10px;
-  border-radius: 6px;
+  border-radius: var(--dsw-radius-sm, 8px);
   font: inherit;
   font-size: 12px;
+  line-height: 18px;
   cursor: pointer;
   white-space: nowrap;
 }
 .gs-confirm {
   border: 0;
-  background: var(--dsw-alias-button-info-fill, var(--dsw-alias-brand-primary));
-  color: #fff;
+  background: var(--dsw-alias-button-primary-fill, var(--dsw-alias-brand-primary));
+  color: var(--dsw-alias-label-primary-foreground, #fff);
 }
-.gs-confirm:disabled { opacity: 0.5; cursor: default; }
+@media (hover: hover) {
+  .gs-confirm:hover:not(:disabled) {
+    background: var(--dsw-alias-button-primary-hover, var(--dsw-alias-button-primary-fill, var(--dsw-alias-brand-primary)));
+  }
+}
+.gs-confirm:disabled { opacity: 0.4; cursor: default; }
 .gs-cancel {
-  border: 0.5px solid var(--dsw-alias-border-l1);
+  border: 0.5px solid var(--dsw-alias-border-l3, var(--dsw-alias-border-l2));
   background: transparent;
-  color: var(--dsw-alias-label-secondary);
+  color: var(--dsw-alias-label-primary);
+}
+@media (hover: hover) {
+  .gs-cancel:hover:not(:disabled) {
+    background: var(--dsw-alias-interactive-bg-hover-solid, var(--dsw-alias-interactive-bg-hover));
+  }
+}
+.gs-confirm:focus-visible, .gs-cancel:focus-visible {
+  outline: var(--dsw-focus-ring-width, 2px) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: 2px;
 }
 .gs-notice {
+  box-sizing: border-box;
   max-width: 100%;
   display: flex;
   align-items: baseline;
   gap: 6px;
-  padding: 3px 8px;
-  border-radius: 8px;
+  padding: 4px 10px;
+  border-radius: var(--dsw-radius-md, 12px);
   border: 0.5px solid var(--dsw-alias-border-l1);
   background: var(--dsw-alias-bg-layer-2, var(--dsw-alias-bg-base));
   color: var(--dsw-alias-label-secondary);
@@ -229,11 +324,14 @@ const CSS = `
 .gs-notice[data-kind="error"] { color: var(--dsw-alias-state-error-primary); }
 .gs-notice[data-kind="success"] { color: var(--dsw-alias-state-success-primary); }
 .gs-notice-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.gs-link { color: inherit; text-decoration: underline; white-space: nowrap; }
+.gs-link { color: var(--dsw-alias-link, currentColor); text-decoration: underline; white-space: nowrap; }
 .gs-spin { animation: gs-rotate 0.8s linear infinite; }
 @keyframes gs-rotate { to { transform: rotate(360deg); } }
+@keyframes gs-menu-in { from { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
   .gs-spin { animation-duration: 2.4s; }
+  .gs-arrow svg { transition: none; }
+  .gs-menu { animation: none; }
 }
 `
 
@@ -323,7 +421,7 @@ function thrownText(error: unknown): string {
 function Spinner(): ReactElement {
   return h(
     'svg',
-    { className: 'gs-spin', width: 13, height: 13, viewBox: '0 0 16 16', 'aria-hidden': true },
+    { className: 'gs-spin', width: 14, height: 14, viewBox: '0 0 16 16', 'aria-hidden': true },
     h('circle', {
       cx: 8,
       cy: 8,
@@ -386,7 +484,7 @@ function Glyph({ kind }: { kind: GlyphKind }): ReactElement {
 function Chevron(): ReactElement {
   return h(
     'svg',
-    { width: 12, height: 12, viewBox: '0 0 12 12', 'aria-hidden': true },
+    { width: 14, height: 14, viewBox: '0 0 12 12', 'aria-hidden': true },
     h('path', {
       d: 'M3 4.5 6 7.5 9 4.5',
       fill: 'none',
@@ -597,7 +695,12 @@ function GitShipDock(props: DockProps): ReactElement | null {
   const menu: ReactNode = open && pendingAction === null
     ? h(
         'div',
-        { className: 'gs-menu', role: 'menu', 'aria-label': translate('menu.label') },
+        {
+          className: branchDraft !== null ? 'gs-menu gs-menuBranch' : 'gs-menu',
+          'data-menu-material': '',
+          role: 'menu',
+          'aria-label': translate('menu.label'),
+        },
         branchDraft !== null
           ? h(
               'form',
@@ -631,7 +734,7 @@ function GitShipDock(props: DockProps): ReactElement | null {
             )
           : null,
         actions.length === 0
-          ? h('div', { className: 'gs-item' }, translate('state.clean'))
+          ? h('div', { className: 'gs-empty', role: 'presentation' }, translate('state.clean'))
           : actions.map((action) =>
               h(
                 'button',
@@ -643,7 +746,7 @@ function GitShipDock(props: DockProps): ReactElement | null {
                   onClick: () => pick(action),
                 },
                 h(Glyph, { kind: glyphKind(action) }),
-                h('span', null, translate(LABEL_KEYS[action] ?? action)),
+                h('span', { className: 'gs-label' }, translate(LABEL_KEYS[action] ?? action)),
               ),
             ),
       )
@@ -684,8 +787,12 @@ function GitShipDock(props: DockProps): ReactElement | null {
               if (defaultAction !== null) void run(defaultAction)
             },
           },
-          pendingAction === null ? null : h(Spinner),
-          h('span', null, mainLabel),
+          pendingAction === null
+            ? defaultAction === null
+              ? null
+              : h(Glyph, { kind: glyphKind(defaultAction) })
+            : h(Spinner),
+          h('span', { className: 'gs-mainLabel' }, mainLabel),
         ),
         h(
           'button',
